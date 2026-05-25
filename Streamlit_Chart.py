@@ -65,12 +65,13 @@ Ericsson LTE KPI Monitoring
 # =====================================
 # LOAD DATA
 # =====================================
+# =====================================
+# LOAD DATA
+# =====================================
 @st.cache_data
 def load_data():
 
-    df = pd.read_csv(
-        r"D:\DATA ANALYST\Python\Dashboard\KPI Hourly.csv"
-    )
+    df = pd.read_csv("KPI Hourly.csv")  
 
     # Convert Date
     df["DATE_ID"] = pd.to_datetime(
