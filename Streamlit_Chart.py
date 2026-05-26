@@ -7,7 +7,8 @@ import plotly.express as px
 # =====================================
 st.set_page_config(
     page_title="Network KPI Dashboard",
-    layout="wide"
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 # =====================================
@@ -241,7 +242,7 @@ def create_chart(
     )
 
     fig.update_layout(
-        height=350,
+        height=500,
 
         plot_bgcolor="#161A28",
         paper_bgcolor="#161A28",
@@ -288,7 +289,58 @@ def create_chart(
 # =====================================
 st.subheader("KPI Charts Trendline")
 
-col1, col2 = st.columns(2)
+if is_mobile:
+
+    create_chart(
+        "Total_Payload_All",
+        "Total Payload Trend"
+    )
+
+    create_chart(
+        "PRB_Util_DL_ALL",
+        "PRB Utilization Trend"
+    )
+
+    create_chart(
+        "User_Downlink_Average_Throughput_kbps",
+        "User DL Throughput"
+    )
+
+    create_chart(
+        "Cell_Downlink_Average_Throughput_kbps",
+        "Cell DL Throughput"
+    )
+
+    create_chart(
+        "User_Uplink_Average_Throughput_kbps",
+        "User UL Throughput"
+    )
+
+    create_chart(
+        "RRC_Connected_User",
+        "RRC Connected User"
+    )
+
+else:
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        create_chart(
+            "Total_Payload_All",
+            "Total Payload Trend"
+        )
+
+    with col2:
+        create_chart(
+            "PRB_Util_DL_ALL",
+            "PRB Utilization Trend"
+        )
+
+is_mobile = st.sidebar.checkbox(
+    "Mobile View",
+    value=False
+)
 
 with col1:
     create_chart(
@@ -336,6 +388,23 @@ create_chart(
     "Active User",
     "Active User Trend"
 )
+st.markdown("""
+<style>
+
+@media (max-width: 768px){
+
+h1{
+    font-size: 26px !important;
+}
+
+[data-testid="stMetric"]{
+    padding: 8px;
+}
+
+}
+
+</style>
+""", unsafe_allow_html=True)
 
 # =====================================
 # RAW DATA
