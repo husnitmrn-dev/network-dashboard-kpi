@@ -11,10 +11,80 @@ st.set_page_config(
 )
 
 # =====================================
+# CUSTOM CSS
+# =====================================
+st.markdown("""
+<style>
+
+/* Main Layout */
+.block-container{
+    padding-top:1rem;
+    padding-bottom:1rem;
+}
+
+/* Chart Card */
+.chart-card{
+    border:1px solid #2A2E39;
+    border-radius:14px;
+    padding:10px;
+    background-color:#161A28;
+    box-shadow:0px 2px 8px rgba(0,0,0,0.3);
+    margin-bottom:15px;
+}
+
+/* KPI Card */
+[data-testid="stMetric"]{
+    border:1px solid #2A2E39;
+    border-radius:12px;
+    padding:15px;
+    background-color:#161A28;
+    box-shadow:0px 2px 8px rgba(0,0,0,0.3);
+}
+
+/* Sidebar */
+[data-testid="stSidebar"]{
+    border-right:1px solid #2A2E39;
+}
+
+/* Mobile */
+@media (max-width:768px){
+
+h1{
+    font-size:26px !important;
+}
+
+[data-testid="stMetric"]{
+    padding:8px !important;
+}
+
+.chart-card{
+    padding:5px !important;
+}
+
+}
+
+</style>
+""", unsafe_allow_html=True)
+
+# =====================================
+# TITLE
+# =====================================
+st.markdown("""
+<h1 style='text-align:center;'>
+📡 Network KPI Dashboard
+</h1>
+
+<p style='text-align:center;color:gray;'>
+Ericsson LTE KPI Monitoring
+</p>
+""", unsafe_allow_html=True)
+
+# =====================================
 # LOAD DATA
 # =====================================
 @st.cache_data
 def load_data():
+
     df = pd.read_csv("KPI Hourly.csv")
 
     df["DATE_ID"] = pd.to_datetime(df["DATE_ID"])
@@ -25,6 +95,15 @@ def load_data():
         .str[:6]
     )
 
+    df["Datetime"] = (
+        df["DATE_ID"]
+        +
+        pd.to_timedelta(
+            df["hour_ID"],
+            unit="h"
+        )
+    )
+
     return df
 
 df = load_data()
@@ -32,9 +111,15 @@ df = load_data()
 # =====================================
 # SIDEBAR FILTER
 # =====================================
-st.sidebar.title("Filter")
+st.sidebar.header("Filter")
 
-# Site ID
+# Mobile View
+is_mobile = st.sidebar.checkbox(
+    "📱 Mobile View",
+    value=False
+)
+
+# Site Filter
 site_list = sorted(
     df["SITE_ID"]
     .dropna()
@@ -44,11 +129,11 @@ site_list = sorted(
 selected_site = st.sidebar.multiselect(
     "Site ID",
     site_list,
-    default=site_list
+    default=[site_list[0]]
 )
 
 # Cell Filter
-cell_list = sorted(
+cell_options = sorted(
     df.loc[
         df["SITE_ID"].isin(selected_site),
         "EUtranCellFDD"
@@ -57,71 +142,93 @@ cell_list = sorted(
     .unique()
 )
 
-selected_cell = st.sidebar.multiselect(
+selected_cells = st.sidebar.multiselect(
     "EUtranCellFDD",
-    cell_list,
-    default=cell_list
+    cell_options,
+    default=cell_options
 )
 
 # Date Filter
+min_date = df["DATE_ID"].min().date()
+max_date = df["DATE_ID"].max().date()
+
 date_range = st.sidebar.date_input(
     "Date Range",
-    value=(
-        df["DATE_ID"].min().date(),
-        df["DATE_ID"].max().date()
-    )
+    value=(min_date, max_date)
 )
 
-# Apply Filter
-filtered_df = df[
+# =====================================
+# FILTER DATA
+# =====================================
+filtered = df[
     (df["SITE_ID"].isin(selected_site))
     &
-    (df["EUtranCellFDD"].isin(selected_cell))
+    (df["EUtranCellFDD"].isin(selected_cells))
 ]
 
 if len(date_range) == 2:
+
     start_date, end_date = date_range
 
-    filtered_df = filtered_df[
-        (filtered_df["DATE_ID"].dt.date >= start_date)
+    filtered = filtered[
+        (
+            filtered["DATE_ID"].dt.date
+            >= start_date
+        )
         &
-        (filtered_df["DATE_ID"].dt.date <= end_date)
+        (
+            filtered["DATE_ID"].dt.date
+            <= end_date
+        )
     ]
 
-# =====================================
-# MOBILE MODE
-# =====================================
-is_mobile = st.sidebar.checkbox(
-    "📱 Mobile View",
-    value=False
+filtered = filtered.sort_values(
+    "Datetime"
 )
 
 # =====================================
-# DASHBOARD TITLE
+# KPI SUMMARY
 # =====================================
-st.title("📊 Network KPI Dashboard")
+st.subheader("KPI Summary")
 
-# =====================================
-# SUMMARY
-# =====================================
-col1, col2, col3 = st.columns(3)
+c1, c2, c3, c4 = st.columns(4)
 
-with col1:
+with c1:
     st.metric(
-        "Site Count",
-        filtered_df["SITE_ID"].nunique()
+        "Avg PRB Util (%)",
+        round(
+            filtered["PRB_Util_DL_ALL"].mean(),
+            2
+        )
     )
 
-with col2:
+with c2:
     st.metric(
-        "Cell Count",
-        filtered_df["EUtranCellFDD"].nunique()
+        "Total Payload (GB)",
+        round(
+            filtered["Total_Payload_All"].sum()/1024,
+            2
+        )
     )
 
-with col3:
+with c3:
     st.metric(
-        "Records",
-        len(filtered_df)
+        "Avg DL TP (kbps)",
+        round(
+            filtered[
+                "User_Downlink_Average_Throughput_kbps"
+            ].mean(),
+            2
+        )
+    )
+
+with c4:
+    st.metric(
+        "Avg Active User",
+        round(
+            filtered["Active User"].mean(),
+            2
+        )
     )
 
 # =====================================
@@ -129,33 +236,52 @@ with col3:
 # =====================================
 def create_chart(column_name, title):
 
-    if column_name not in filtered_df.columns:
-        st.warning(f"Column '{column_name}' not found")
-        return
-
-    chart_df = (
-        filtered_df
-        .groupby("hour_ID")[column_name]
-        .mean()
-        .reset_index()
-        .sort_values("hour_ID")
+    st.markdown(
+        '<div class="chart-card">',
+        unsafe_allow_html=True
     )
 
     fig = px.line(
-        chart_df,
-        x="hour_ID",
+        filtered,
+        x="Datetime",
         y=column_name,
-        markers=True,
-        title=title
+        color="EUtranCellFDD",
+        title=title,
+        template="plotly_dark"
     )
 
     fig.update_layout(
-        height=400
+        height=350,
+        plot_bgcolor="#161A28",
+        paper_bgcolor="#161A28",
+        font=dict(color="white"),
+        margin=dict(
+            l=20,
+            r=20,
+            t=50,
+            b=20
+        ),
+        legend_title_text="Cell"
+    )
+
+    fig.update_xaxes(
+        showgrid=True,
+        gridcolor="rgba(255,255,255,0.1)"
+    )
+
+    fig.update_yaxes(
+        showgrid=True,
+        gridcolor="rgba(255,255,255,0.1)"
     )
 
     st.plotly_chart(
         fig,
         use_container_width=True
+    )
+
+    st.markdown(
+        "</div>",
+        unsafe_allow_html=True
     )
 
 # =====================================
@@ -250,23 +376,11 @@ create_chart(
 )
 
 # =====================================
-# CSS
+# RAW DATA
 # =====================================
-st.markdown("""
-<style>
+st.subheader("Raw Data")
 
-.block-container{
-    padding-top:1rem;
-    padding-bottom:1rem;
-}
-
-@media (max-width:768px){
-
-h1{
-    font-size:26px !important;
-}
-
-}
-
-</style>
-""", unsafe_allow_html=True)
+st.dataframe(
+    filtered,
+    use_container_width=True
+)
