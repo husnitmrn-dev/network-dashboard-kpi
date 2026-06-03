@@ -1,0 +1,3 @@
+git add Streamlit_Chart.py
+git commit -m "Responsive dashboard"
+git push
